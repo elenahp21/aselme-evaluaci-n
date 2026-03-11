@@ -208,56 +208,65 @@
 
     async function loadDB() {
       const local = (() => { try { const j=localStorage.getItem(STORAGE_KEY); return j?JSON.parse(j,reviver):null; } catch(e){return null;} })();
-      let db = {
-        users:          local?.users          || [],
-        works:          local?.works          || [],
-        assignments:    local?.assignments    || [],
-        phase1Reviews:  local?.phase1Reviews  || [],
-        phase2Reviews:  local?.phase2Reviews  || [],
-        phase3Reviews:  local?.phase3Reviews  || [],
-        settings:       local?.settings       || { phase1Open:true, phase2Open:true, phase3Open:true },
-        loginAttempts:  local?.loginAttempts  || []
-      };
+
+      // Si Supabase disponible, ES LA FUENTE DE VERDAD — localStorage solo es caché offline
       if (supabaseClient) {
-        console.log('Cargando todas las tablas desde Supabase...');
-        const [sbUsers, sbWorks, sbAssign, sbP1, sbP2, sbP3] = await Promise.all([
-          sbFetch('users',           mapUser),
-          sbFetch('works',           mapWork),
-          sbFetch('assignments',     mapAssignment),
-          sbFetch('phase1_reviews',  mapP1),
-          sbFetch('phase2_reviews',  mapP2),
-          sbFetch('phase3_reviews',  mapP3),
-        ]);
-        if (sbUsers?.length) {
-          db.users = sbUsers;
-          console.log('users:', sbUsers.length);
-        } else if (db.users?.length && supabaseClient) {
-          // Supabase users vacío pero tenemos usuarios locales — subirlos todos
-          console.log('Supabase users vacío, subiendo usuarios locales:', db.users.length);
-          for (const u of db.users) {
+        console.log('Cargando desde Supabase (fuente de verdad)...');
+        try {
+          const [sbUsers, sbWorks, sbAssign, sbP1, sbP2, sbP3] = await Promise.all([
+            sbFetch('users',           mapUser),
+            sbFetch('works',           mapWork),
+            sbFetch('assignments',     mapAssignment),
+            sbFetch('phase1_reviews',  mapP1),
+            sbFetch('phase2_reviews',  mapP2),
+            sbFetch('phase3_reviews',  mapP3),
+          ]);
+
+          let db = {
+            users:         sbUsers  || [],
+            works:         sbWorks  || [],
+            assignments:   sbAssign || [],
+            phase1Reviews: sbP1     || [],
+            phase2Reviews: sbP2     || [],
+            phase3Reviews: sbP3     || [],
+            settings:      local?.settings || { phase1Open:true, phase2Open:true, phase3Open:true },
+            loginAttempts: local?.loginAttempts || []
+          };
+          console.log('Supabase cargado — users:', db.users.length, 'works:', db.works.length);
+
+          // Si no hay admin en Supabase, crearlo y subirlo
+          const hasAdmin = db.users.some(u => u.role==='admin' && u.active);
+          if (!hasAdmin) {
+            const admin = { id:'admin-1', username:'admin', passwordHash: await hashPassword('admin123'), fullName:'Administrador ASELME', role:'admin', active:true, forcePasswordChange:true };
+            db.users.push(admin);
             try {
-              await supabaseClient.from('users').upsert({ id:u.id, username:u.username, password_hash:u.passwordHash, full_name:u.fullName, role:u.role, active:u.active??true, force_password_change:u.forcePasswordChange??false }, { onConflict:'id' });
-            } catch(e) { console.warn('Error subiendo usuario', u.username, e.message); }
+              await supabaseClient.from('users').upsert({ id:admin.id, username:admin.username, password_hash:admin.passwordHash, full_name:admin.fullName, role:admin.role, active:true, force_password_change:true }, { onConflict:'id' });
+              console.log('Admin creado y subido a Supabase');
+            } catch(e) { console.warn('No se pudo subir admin a Supabase:', e.message); }
           }
-        }
-        if (sbWorks)          { db.works          = sbWorks;  console.log('works:',  sbWorks.length); }
-        if (sbAssign)         { db.assignments    = sbAssign; }
-        if (sbP1)             { db.phase1Reviews  = sbP1;     }
-        if (sbP2)             { db.phase2Reviews  = sbP2;     }
-        if (sbP3)             { db.phase3Reviews  = sbP3;     }
-      }
-      const hasAdmin = db.users.some(u => u.role==='admin' && u.active);
-      if (!hasAdmin) {
-        const admin = { id:'admin-1', username:'admin', passwordHash: await hashPassword('admin123'), fullName:'Administrador ASELME', role:'admin', active:true, forcePasswordChange:true };
-        db.users.push(admin);
-        // Sincronizar admin a Supabase también
-        if (supabaseClient) {
-          try {
-            await supabaseClient.from('users').upsert({ id:admin.id, username:admin.username, password_hash:admin.passwordHash, full_name:admin.fullName, role:admin.role, active:true, force_password_change:true }, { onConflict:'id' });
-          } catch(e) { console.warn('No se pudo sincronizar admin a Supabase:', e.message); }
+          return db;
+        } catch(e) {
+          console.warn('Supabase falló, usando localStorage como fallback:', e.message);
+          // Caer en localStorage si Supabase da error
         }
       }
-      return db;
+
+      // Fallback: localStorage (sin conexión o Supabase no configurado)
+      console.log('Usando localStorage como fuente de datos');
+      if (local) {
+        if (!local.loginAttempts) local.loginAttempts = [];
+        ['works','assignments','phase1Reviews','phase2Reviews','phase3Reviews'].forEach(k => { if (!local[k]) local[k] = []; });
+        const hasAdmin = (local.users||[]).some(u => u.role==='admin' && u.active);
+        if (!hasAdmin) {
+          if (!local.users) local.users = [];
+          local.users.push({ id:'admin-1', username:'admin', passwordHash: await hashPassword('admin123'), fullName:'Administrador ASELME', role:'admin', active:true, forcePasswordChange:true });
+        }
+        return local;
+      }
+
+      // Sin nada — DB vacía con admin por defecto
+      const admin = { id:'admin-1', username:'admin', passwordHash: await hashPassword('admin123'), fullName:'Administrador ASELME', role:'admin', active:true, forcePasswordChange:true };
+      return { users:[admin], works:[], assignments:[], phase1Reviews:[], phase2Reviews:[], phase3Reviews:[], settings:{ phase1Open:true, phase2Open:true, phase3Open:true }, loginAttempts:[] };
     }
 
     function saveDB() { localStorage.setItem(STORAGE_KEY, JSON.stringify(DB)); }
