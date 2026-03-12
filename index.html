@@ -103,7 +103,7 @@
     // Supabase es OPCIONAL — si la clave es incorrecta, todo funciona con localStorage
     const SUPABASE_URL = 'https://frzqeldwpfpxashkcixb.supabase.co';
     // ▼▼▼ PEGA AQUÍ TU ANON KEY COMPLETA (empieza por eyJ...) ▼▼▼
-    const SUPABASE_ANON_KEY = 'PEGA_AQUI_TU_ANON_KEY'; // Supabase → Settings → API → anon public
+    const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImZyenFlbGR3cGZweGFzaGtjaXhiIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzI4Mjk4MzEsImV4cCI6MjA4ODQwNTgzMX0.z2vN5RgmnzCl50xuiWhKC8KTCmQfPgcMLxRn8XmtJpQ'; // Supabase → Settings → API → anon public
     let supabaseClient = null;
     try {
       if (typeof supabase !== 'undefined' && SUPABASE_ANON_KEY.length > 40) {
