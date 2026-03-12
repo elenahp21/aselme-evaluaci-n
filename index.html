@@ -183,21 +183,19 @@
     }
 
     async function sbUpsert(table, row) {
-      if (!supabaseClient) return;
+      if (!supabaseClient) { console.warn('sbUpsert: sin cliente', table); return; }
       try {
-        console.log('sbUpsert →', table, JSON.stringify(row).substring(0,80));
-        const { error } = await supabaseClient.from(table).upsert(row, { onConflict: 'id' });
+        console.log('sbUpsert →', table, JSON.stringify(row).substring(0,100));
+        const { data, error } = await supabaseClient.from(table).upsert(row, { onConflict: 'id' }).select();
         if (error) {
-          console.error('sbUpsert ERROR', table, error.code, error.message, error.details||'', error.hint||'');
-          throw new Error('[' + error.code + '] ' + error.message + (error.hint ? ' — ' + error.hint : ''));
+          const msg = '[' + (error.code||'?') + '] ' + error.message + (error.hint?' — '+error.hint:'') + (error.details?' | '+error.details:'');
+          console.error('sbUpsert ERROR', table, msg);
+          throw new Error(msg);
         }
-        console.log('sbUpsert OK ←', table);
-      } catch(e) {
-        console.error('sbUpsert EXCEPCIÓN', table, e.message);
-        throw e;
-      }
+        console.log('sbUpsert OK ←', table, data?.length, 'filas guardadas');
+      } catch(e) { console.error('sbUpsert EXCEPCIÓN', table, e.message); throw e; }
     }
-
+    
     async function sbDelete(table, id) {
       if (!supabaseClient) return;
       try {
