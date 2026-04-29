@@ -1433,11 +1433,11 @@
           fileName = file.name;
           const filePath = `work-${Date.now()}/${file.name}`;
           const { error: uploadError } = await supabaseClient.storage
-            .from('works-files')
+            .from('work-files')
             .upload(filePath, file, { upsert: true });
           if (!uploadError) {
             const { data: urlData } = supabaseClient.storage
-              .from('works-files')
+              .from('work-files')
               .getPublicUrl(filePath);
             fileUrl = urlData.publicUrl;
           } else {
