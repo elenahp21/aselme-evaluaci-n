@@ -1452,7 +1452,7 @@
             if (btn) { btn.disabled = false; btn.textContent = 'Guardar'; }
             return;
           }
-          const newWork = { id: 'work-' + Date.now(), code, title, authors, institution, modality, presentationType, abstract, file: fileUrl: fileUrl, fileName: fileName, status: 'pendiente', internalNotes: '', createdAt: new Date() };
+        const newWork = { id: 'work-' + Date.now(), code, title, authors, institution, modality, presentationType, abstract, fileUrl: fileUrl, fileName: fileName, status: 'pendiente', internalNotes: '', createdAt: new Date() };
           DB.works.push(newWork);
           saveDB();
           try {
