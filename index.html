@@ -157,7 +157,7 @@
     // ============================================
     // ── Mapeo Supabase (snake_case) → JS (camelCase) ──────────────────────────
     const mapUser = u => ({ id:u.id, username:u.username, passwordHash:u.password_hash||null, fullName:u.full_name||'', role:u.role||'evaluador', active:u.active??true, forcePasswordChange:u.force_password_change??false });
-    const mapWork = w => ({ id:w.id, code:w.code, title:w.title, authors:w.authors||'', institution:w.institution||'', modality:w.modality||'investigacion', presentationType:w.presentation_type||'oral', abstract:w.abstract||'', status:w.status||'pendiente', internalNotes:w.internal_notes||'', createdAt:w.created_at?new Date(w.created_at):new Date() });
+    const mapWork = w => ({ id:w.id, code:w.code, title:w.title, authors:w.authors||'', institution:w.institution||'', modality:w.modality||'investigacion', presentationType:w.presentation_type||'oral', abstract:w.abstract||'', status:w.status||'pendiente', internalNotes:w.internal_notes||'', createdAt:w.created_at?new Date(w.created_at):new Date(), fileUrl: w.file_url || null, fileName: w.file_name || null });
     const mapAssignment = a => ({ id:a.id, workId:a.work_id, evaluatorId:a.evaluator_id });
     const mapP1 = r => ({ id:r.id, workId:r.work_id, evaluatorId:r.evaluator_id, q1TitleSpecific:r.q1_title_specific, q2ApplicableField:r.q2_applicable_field, q3StructureNorms:r.q3_structure_norms, passed:r.passed, comments:r.comments||'', createdAt:r.created_at?new Date(r.created_at):new Date() });
     const mapP2 = r => ({ id:r.id, workId:r.work_id, evaluatorId:r.evaluator_id, modality:r.modality, c1Innovation:r.c1_innovation, c2Objectives:r.c2_objectives, c3Design:r.c3_design, c3Sample:r.c3_sample, c3Measurement:r.c3_measurement, c3Analysis:r.c3_analysis, c3Description:r.c3_description, c3Selection:r.c3_selection, c3Intervention:r.c3_intervention, c3Indicators:r.c3_indicators, c4Results:r.c4_results, c5Utility:r.c5_utility, comments:r.comments||'', isDraft:r.is_draft??true, createdAt:r.created_at?new Date(r.created_at):new Date(), updatedAt:r.updated_at?new Date(r.updated_at):new Date() });
@@ -486,7 +486,7 @@
               const ac = DB.assignments.filter(a => a.workId === work.id).length;
               return `<tr>
                 <td>${work.code}</td>
-                <td>${work.title}${work.file ? `<br><a href="${work.file.data}" download="${work.file.fileName}">Descargar</a>` : ''}</td>
+                <td>${work.title}${work.fileUrl ? `<br><a href="${work.fileUrl}" download="${work.fileName}">Descargar</a>` : ''}</td>
                 <td>${work.authors || ''}</td><td>${work.institution || ''}</td>
                 <td>${getModalityText(work.modality)}</td><td>${getPresentationTypeText(work.presentationType)}</td>
                 <td>${getStatusBadge(work.status)}</td><td>${p2} / ${ac}</td>
@@ -1426,15 +1426,23 @@
         if (!title) { showErr('El título es obligatorio.'); if (btn) { btn.disabled = false; btn.textContent = workId ? 'Actualizar' : 'Guardar'; } return; }
 
         // Leer archivo si hay uno
-        let fileObj = null;
+       let fileUrl = null;
+        let fileName = null;
         if (fileInput && fileInput.files && fileInput.files.length > 0) {
           const file = fileInput.files[0];
-          fileObj = await new Promise((res, rej) => {
-            const r = new FileReader();
-            r.onload = () => res({ fileName: file.name, data: r.result });
-            r.onerror = rej;
-            r.readAsDataURL(file);
-          });
+          fileName = file.name;
+          const filePath = `work-${Date.now()}/${file.name}`;
+          const { error: uploadError } = await supabaseClient.storage
+            .from('works-files')
+            .upload(filePath, file, { upsert: true });
+          if (!uploadError) {
+            const { data: urlData } = supabaseClient.storage
+              .from('works-files')
+              .getPublicUrl(filePath);
+            fileUrl = urlData.publicUrl;
+          } else {
+            console.warn('Error subiendo archivo:', uploadError.message);
+          }
         }
 
         if (!workId) {
@@ -1448,7 +1456,7 @@
           DB.works.push(newWork);
           saveDB();
           try {
-            await sbUpsert('works', { id:newWork.id, code, title, authors, institution, modality, presentation_type:presentationType, abstract, status:'pendiente', internal_notes:'' });
+            await sbUpsert('works', { id:newWork.id, code, title, authors, institution, modality, presentation_type:presentationType, abstract, status:'pendiente', internal_notes:'', file_url:fileUrl, file_name:fileName });
             alert('Trabajo creado correctamente.');
           } catch(sbErr) {
             alert('Trabajo guardado localmente.\n\nError Supabase: ' + sbErr.message + '\n\n→ Solución probable: desactiva RLS en la tabla "works" en Supabase, o añade una policy para anon.');
@@ -1460,7 +1468,8 @@
           Object.assign(work, { code, title, authors, institution, modality, presentationType, abstract });
           if (fileObj) work.file = fileObj;
           saveDB();
-          await sbUpsert('works', { id:work.id, code, title, authors, institution, modality, presentation_type:presentationType, abstract, status:work.status||'pendiente', internal_notes:work.internalNotes||'' });
+          if (fileUrl) { work.fileUrl = fileUrl; work.fileName = fileName; }
+          await sbUpsert('works', { id:work.id, code, title, authors, institution, modality, presentation_type:presentationType, abstract, status:work.status||'pendiente', internal_notes:work.internalNotes||'', file_url:work.fileUrl||null, file_name:work.fileName||null });
           alert('Trabajo actualizado correctamente.');
         }
 
