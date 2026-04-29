@@ -621,7 +621,7 @@
             <div class="work-detail"><div class="work-detail-label">Modalidad</div><div>${getModalityText(work.modality)}</div></div>
             <div class="work-detail"><div class="work-detail-label">Tipo de presentación</div><div>${getPresentationTypeText(work.presentationType)}</div></div>
             <div class="work-detail"><div class="work-detail-label">Resumen</div><div>${work.abstract || ''}</div></div>
-            ${work.file ? `<div class="work-detail"><a href="${work.file.data}" download="${work.file.fileName}" class="btn btn-outline">Descargar texto completo</a></div>` : ''}
+            ${work.fileUrl ? `<div class="work-detail"><a href="${work.fileUrl}" download="${work.fileName}" class="btn btn-outline">Descargar texto completo</a></div>` : ''}
           </div>
           ${!p1 ? renderPhase1Form(work) :
             !p1.passed ? renderPhase1Rejected(p1) :
